@@ -18,7 +18,6 @@ export default defineUserConfig({
     logo: '/images/logo.png',
     navbar: [
       { text: '首页', link: '/' },
-      { text: '测试页面', link: '/test.html' },
       { 
         text: '项目介绍', 
         children: [
