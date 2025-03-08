@@ -43,7 +43,7 @@ export default defineUserConfig({
         ]
       },
       { text: '开发计划', link: '/roadmap/' },
-      { text: '关于我们', link: '/about/' }
+      { text: '关于我们', link: '/about/README.md' }
     ],
     
     sidebar: {
