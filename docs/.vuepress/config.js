@@ -11,12 +11,14 @@ export default defineUserConfig({
   ],
 
   // GitHub Pages 部署配置
+  // 注意：这里的 base 必须与仓库名称完全一致，包括大小写
   base: '/dramaReaderAi/',
 
   theme: defaultTheme({
     logo: '/images/logo.png',
     navbar: [
       { text: '首页', link: '/' },
+      { text: '测试页面', link: '/test.html' },
       { 
         text: '项目介绍', 
         children: [
