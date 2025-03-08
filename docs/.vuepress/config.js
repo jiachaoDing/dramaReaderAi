@@ -7,14 +7,14 @@ export default defineUserConfig({
   title: '剧想·智读',
   description: 'AI驱动的沉浸式阅读与学习平台',
   head: [
-    // 标准 favicon
-    ['link', { rel: 'icon', href: '/images/favicon.ico' }],
+    // 标准 favicon - 使用完整路径
+    ['link', { rel: 'icon', type: 'image/x-icon', href: '/dramaReaderAi/images/favicon.ico' }],
     // Apple 触摸图标
-    ['link', { rel: 'apple-touch-icon', href: '/images/logo.png' }],
+    ['link', { rel: 'apple-touch-icon', href: '/dramaReaderAi/images/logo.png' }],
     // PWA 图标
-    ['link', { rel: 'mask-icon', href: '/images/logo.png', color: '#3eaf7c' }],
+    ['link', { rel: 'mask-icon', href: '/dramaReaderAi/images/logo.png', color: '#3eaf7c' }],
     // 备用 favicon
-    ['link', { rel: 'shortcut icon', href: '/images/favicon.ico' }]
+    ['link', { rel: 'shortcut icon', type: 'image/x-icon', href: '/dramaReaderAi/images/favicon.ico' }]
   ],
 
   // GitHub Pages 部署配置
