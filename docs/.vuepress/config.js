@@ -62,7 +62,7 @@ export default defineUserConfig({
       ],
     },
 
-    repo: 'your-username/dramaReaderAi',
+    repo: 'jiachaoDing/dramaReaderAi',
     editLink: true,
     lastUpdated: true,
     contributors: true,
