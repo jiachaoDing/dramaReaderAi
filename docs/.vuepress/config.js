@@ -7,7 +7,14 @@ export default defineUserConfig({
   title: '剧想·智读',
   description: 'AI驱动的沉浸式阅读与学习平台',
   head: [
-    ['link', { rel: 'icon', href: '/images/logo.png' }]
+    // 标准 favicon
+    ['link', { rel: 'icon', href: '/images/favicon.ico' }],
+    // Apple 触摸图标
+    ['link', { rel: 'apple-touch-icon', href: '/images/logo.png' }],
+    // PWA 图标
+    ['link', { rel: 'mask-icon', href: '/images/logo.png', color: '#3eaf7c' }],
+    // 备用 favicon
+    ['link', { rel: 'shortcut icon', href: '/images/favicon.ico' }]
   ],
 
   // GitHub Pages 部署配置
