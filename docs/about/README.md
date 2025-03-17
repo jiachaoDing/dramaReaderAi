@@ -2,42 +2,85 @@
 
 欢迎阅读我们的项目介绍！我们是山东大学软件学院的学生，目前正在进行一个实训项目。该项目旨在探索和实现先进的软件开发技术，通过团队协作与实践提升我们的技术能力和项目管理水平。
 
----
+## 核心团队
 
+### 马永青 - 后端与数据库核心负责人
+
+#### 主要职责
+1. 后端开发
+   - 主导 Spring Boot 基础框架搭建
+   - 开发核心业务逻辑，包括用户认证、权限管理等关键模块
+   - 参与接口设计，制定 RESTful API 规范
+   - 实现动态剧情推演、前期提要等智能功能的后端逻辑
+
+2. 数据库设计与搭建
+   - 设计 MySQL 数据库架构
+   - 负责数据库初始化、维护与优化
+   - 制定数据备份与恢复策略
+
+### 丁家超 - 前端功能开发主导
+
+#### 主要职责
+1. 小说类前端功能实现
+   - 开发小说阅读页面的基础布局与交互
+   - 实现沉浸式阅读界面功能
+   - 开发动态剧情推演和前期提要功能的前端交互
+
+2. 前端组件开发与复用
+   - 设计开发通用前端组件
+   - 优化前端代码结构
+   - 确保组件与后端接口的稳定交互
+
+### 王嘉 - 前端功能开发协同
+
+#### 主要职责
+1. 专业书籍类前端功能实现
+   - 开发专业书籍阅读页面
+   - 实现专业知识辅助功能
+   - 确保不同类型书籍页面风格统一
+
+### 王贺 - 项目协调与部分前端开发
+
+#### 主要职责
+1. 项目博客维护与进度管理
+   - 维护项目博客
+   - 记录项目开发过程
+   - 促进团队交流与沟通
+
+2. 前端开发辅助
+   - 协助前端开发工作
+   - 参与页面测试与bug修复
+   - 配合前后端联调测试
+
+### 陈晓晓 - 前端视觉设计核心
+
+#### 主要职责
+1. 整体视觉设计
+   - 制定统一的视觉风格
+   - 设计页面布局与视觉效果
+   - 优化用户界面体验
+
+2. 素材设计与管理
+   - 创作和管理视觉素材
+   - 建立规范的素材库
+   - 持续优化视觉设计方案
 
 ## 项目资源
 
-- **项目博客地址**：  
-  [https://jiachaoding.github.io/dramaReaderAi/](https://jiachaoding.github.io/dramaReaderAi/)
+- **项目文档**：[剧想·智读文档](https://jiachaoding.github.io/dramaReaderAi/)
 
-- **代码托管**：  
-  - 前端代码：[https://gitee.com/ding-jiachao/drama-read-ai](https://gitee.com/ding-jiachao/drama-read-ai)  
+- **代码托管**：
+  - 前端代码：[https://gitee.com/ding-jiachao/drama-read-ai](https://gitee.com/ding-jiachao/drama-read-ai)
   - 后端代码：[https://gitee.com/YongQingMa/reader.git](https://gitee.com/YongQingMa/reader.git)
 
----
+## 团队成员博客
 
-## 项目团队成员博客地址
-
-> 马永青博客地址：  
-> [https://blog.csdn.net/m0_74318575/category_12912775.html](https://blog.csdn.net/m0_74318575/category_12912775.html)
-
-> 丁家超博客地址：  
-> [https://blog.csdn.net/qq_45161108/category_12912786.html](https://blog.csdn.net/qq_45161108/category_12912786.html)
-
-> 王贺博客地址：  
-> [https://blog.csdn.net/w19805401898/category_12912784.html](https://blog.csdn.net/w19805401898/category_12912784.html)
-
-> 王嘉博客地址：  
-> [https://blog.csdn.net/m0_74087331/category_12913064.html](https://blog.csdn.net/m0_74087331/category_12913064.html)
-
-> 陈晓晓博客地址：  
-> [https://blog.csdn.net/2401_83165109/category_12913055.html](https://blog.csdn.net/2401_83165109/category_12913055.html)
-
----
+- 马永青：[https://blog.csdn.net/m0_74318575/category_12912775.html](https://blog.csdn.net/m0_74318575/category_12912775.html)
+- 丁家超：[https://blog.csdn.net/qq_45161108/category_12912786.html](https://blog.csdn.net/qq_45161108/category_12912786.html)
+- 王贺：[https://blog.csdn.net/w19805401898/category_12912784.html](https://blog.csdn.net/w19805401898/category_12912784.html)
+- 王嘉：[https://blog.csdn.net/m0_74087331/category_12913064.html](https://blog.csdn.net/m0_74087331/category_12913064.html)
+- 陈晓晓：[https://blog.csdn.net/2401_83165109/category_12913055.html](https://blog.csdn.net/2401_83165109/category_12913055.html)
 
 ## 结束语
 
 本项目汇聚了多位热爱软件开发和技术创新的同学。我们相信，通过大家的共同努力和不断探索，将为剧本阅读与分析领域带来全新的体验和突破。欢迎大家关注项目博客和个人博客，了解项目的最新进展与技术分享！
-
-  <p align="right">
-<small>丁家超 | 修改日期：2025-03-08</small></p>
