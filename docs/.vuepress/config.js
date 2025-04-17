@@ -71,7 +71,7 @@ export default defineUserConfig({
     // },
 
     repo: 'jiachaoDing/dramaReaderAi',
-    editLink: true,
+    // editLink: true,
     // lastUpdated: true,
     // contributors: true,
   }),
