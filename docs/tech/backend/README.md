@@ -1,96 +1,139 @@
-# 前端技术文档
+# 后端技术文档
 
-## 目录
-- [前端技术文档](#前端技术文档)
-  - [目录](#目录)
-  - [项目简介](#项目简介)
-  - [技术栈](#技术栈)
-  - [项目结构](#项目结构)
-  - [开发环境配置](#开发环境配置)
-  - [功能模块](#功能模块)
-  - [常见问题](#常见问题)
+## 一、书籍存储设计
 
----
+本项目为 Web 阅读平台，书籍数据存储在服务器端。存储设计如下：
 
-## 项目简介
-本项目是一个基于现代前端技术栈开发的 Web 应用，旨在提供高效、用户友好的界面和交互体验。
+- 书籍基本信息（如简介、作者、封面、分类等）存储于 `books` 表。
+- 书籍内容按章节拆分，单独存储，每章与书籍通过外键关联。
+- 书籍来源通过爬虫从正规网站获取，后续计划自动化爬取并存储。
 
----
+## 二、Spring Boot 项目搭建
 
-## 技术栈
-- **框架**: React / Vue / Angular
-- **状态管理**: Redux / Vuex / Zustand
-- **路由**: React Router / Vue Router
-- **UI 库**: Ant Design / Element Plus / Material-UI
-- **构建工具**: Vite / Webpack
-- **语言**: TypeScript / JavaScript
-- **其他**: Axios、ECharts、Lodash
+- 采用 Spring Boot 快速搭建后端框架，简化配置。
+- 数据库模块待数据库设计完成后引入。
+- 局域网及校园网环境下测试接口可用性，便于团队调试。
 
----
+## 三、用户信息修改接口
 
-## 项目结构
+### 业务流程
+
+1. 接收前端请求，校验参数（用户名、邮箱、头像）。
+2. 查询用户是否存在。
+3. 更新用户邮箱和头像。
+4. 返回更新后的用户信息。
+
+### 代码示例
+
+```java
+public ApiResponse<profileResponse> profile(profileRequest request){
+    User user = userMapper.getUserByName(request.getUsername());
+    if(user == null){
+        return ApiResponse.error(404, "用户不存在");
+    }
+    // 检查邮箱格式
+    if(request.getEmail()==""||request.getUsername()==""||request.getAvatarUrl()==""){
+        return ApiResponse.error(400, "参数不正确");
+    }
+    // 更新用户的头像和邮箱
+    userMapper.updateUserProfile(user.getUserId(), request.getEmail(), request.getAvatarUrl());
+    user = userMapper.getUserByName(request.getUsername());
+    profileResponse response = new profileResponse();
+    response.setUserId(user.getUserId());
+    response.setUsername(user.getUsername());
+    response.setEmail(user.getEmail());
+    response.setAvatarUrl(user.getAvatarUrl());
+    return ApiResponse.success(response);
+}
 ```
-project/
-├── public/         # 静态资源
-├── src/            # 源代码
-│   ├── assets/     # 图片、字体等资源
-│   ├── components/ # 公共组件
-│   ├── pages/      # 页面组件
-│   ├── router/     # 路由配置
-│   ├── store/      # 状态管理
-│   ├── utils/      # 工具函数
-│   ├── App.tsx     # 主应用入口
-│   └── main.ts     # 项目入口文件
-├── package.json    # 项目依赖配置
-└── README.md       # 项目说明
+
+### 测试优化
+
+- 拦截器中增加开发环境下测试 token 放行，便于接口调试，无需频繁登录。
+
+## 四、书籍列表接口开发
+
+### 书籍实体设计
+
+```java
+public class Book {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "book_id")
+    private Integer bookId;
+    @Column(name = "book_name")
+    private String bookName;
+    @Column(name = "author")
+    private String author;
+    @Column(name = "cover_url")
+    private String coverUrl;
+    @Column(name = "description")
+    private String description;
+    @Column(name = "categories_id")
+    private Integer categoryId;
+    @Column(name = "view_count")
+    private Integer viewCount;
+    @Column(name = "create_time")
+    private Timestamp createTime;
+}
 ```
 
+### 数据层（MyBatis 动态 SQL）
+
+- 支持按分类、排序（最新/热门）查询。
+- 默认按更新时间倒序。
+
+```java
+@Select({
+    "<script>",
+    "SELECT b.book_id, b.book_name, b.author, b.cover_url, c.name as category, b.create_time",
+    "FROM books b",
+    "LEFT JOIN categories c ON b.categories_id = c.categories_id",
+    "<where>",
+    "<if test='category != null and category != \"\"'>",
+    "AND c.name = #{category}",
+    "</if>",
+    "</where>",
+    "<choose>",
+    "   <when test='sort == \"new\"'>",
+    "       ORDER BY b.create_time DESC",
+    "   </when>",
+    "   <when test='sort == \"hot\"'>",
+    "       ORDER BY b.view_count DESC",
+    "   </when>",
+    "   <otherwise>",
+    "       ORDER BY b.create_time DESC",
+    "   </otherwise>",
+    "</choose>",
+    "</script>"
+})
+List<BookListItem> getBookList(@Param("category") String category,
+                               @Param("sort") String sort);
+```
+
+### 业务层（分页）
+
+- 使用 PageHelper 分页插件，简化分页逻辑。
+
+```java
+public ApiResponse<BookListResponse> getBookList(Integer page, Integer pageSize, String category, String sort) {
+    // 开启分页
+    PageHelper.startPage(page, pageSize);
+    // 获取图书列表
+    List<BookListItem> bookList = bookMapper.getBookList(category, sort);
+    // 获取分页信息
+    PageInfo<BookListItem> pageInfo = new PageInfo<>(bookList);
+    // 封装返回结果
+    BookListResponse response = new BookListResponse();
+    response.setTotal((int) pageInfo.getTotal());
+    response.setBookList(bookList);
+    return ApiResponse.success(response);
+}
+```
+
+## 五、开发经验与后续计划
+
+- 熟悉了 MyBatis 动态 SQL 和分页插件的使用。
+- 后续计划引入大量书籍数据，开发书籍详情接口，并探索 Redis 有序集合实现排行榜功能。
+
 ---
-
-## 开发环境配置
-1. 安装 [Node.js](https://nodejs.org/) (建议版本 >= 16.x)。
-2. 克隆项目代码：
-    ```bash
-    git clone <仓库地址>
-    ```
-3. 安装依赖：
-    ```bash
-    npm install
-    ```
-4. 启动开发服务器：
-    ```bash
-    npm run dev
-    ```
-5. 构建生产环境代码：
-    ```bash
-    npm run build
-    ```
-
----
-
-## 功能模块
-- **用户管理**: 用户注册、登录、权限管理。
-- **数据展示**: 图表、表格、列表。
-- **交互功能**: 表单验证、动态加载、拖拽排序。
-- **其他功能**: 国际化、多主题切换。
-
----
-
-## 常见问题
-1. **依赖安装失败**
-    - 确保 Node.js 和 npm 版本符合要求。
-    - 尝试删除 `node_modules` 文件夹并重新安装：
-      ```bash
-      rm -rf node_modules package-lock.json
-      npm install
-      ```
-
-2. **开发服务器无法启动**
-    - 检查端口是否被占用，修改 `vite.config.ts` 中的端口配置。
-
-3. **构建失败**
-    - 确保所有依赖已正确安装，检查构建日志定位问题。
-
----
-
-如有其他问题，请联系开发团队。

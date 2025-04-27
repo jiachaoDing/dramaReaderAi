@@ -91,20 +91,50 @@ src/
 
 ### 3. 阅读页面（ReaderPage.vue）
 
-- **组件构成**：
-  - ReaderToolbar（可收起）
-  - ReaderContent
-  - SideNavigation（含 BookCatalog，可收起）
-  - ReaderSettingsPanel
-  - AIToolbar（可收起）
-  - TextSelector
-  - ReadingProgressBar
-  - AI 功能面板（按需显示）
-- **功能**：
-  - 展示阅读内容，支持翻页
-  - 章节导航、阅读设置
-  - AI 功能入口
-  - 书签管理、进度展示
+- **开发进度记录**：
+  - 2024.4.22：完成阅读页面核心框架和基础功能，包括章节内容动态加载、章节导航、三栏式布局、目录/书签/设置/AI 工具栏等基础交互，支持亮/暗主题切换和响应式布局。
+  - 2024.4.23：针对 ReaderPage.vue 代码量过大、可维护性差等问题，采用“关注点分离”原则，完成组件拆分优化。将页面拆分为数据管理层（Pinia Store）、业务逻辑层（Composables）、展示组件层（Vue Components），极大提升了代码可维护性和复用性。
+
+- **组件拆分优化实践**：
+  - **优化前问题**：ReaderPage.vue 代码量超 2000 行，职责不清晰，维护困难。
+  - **优化思路**：分为三层架构——Pinia Store（状态管理）、Composables（业务逻辑）、Components（UI 展示）。
+  - **优化后目录结构**：
+    ```
+    src/
+    ├── components/
+    │   └── reader/
+    │       ├── toolbar/
+    │       │   └── AIToolbar.vue          # AI 工具栏组件
+    │       ├── modals/
+    │       │   ├── CatalogModal.vue       # 目录模态框
+    │       │   ├── GuideToolbar.vue       # 指南模态框
+    │       │   └── SettingsModal.vue      # 设置模态框
+    │       └── controls/
+    │           ├── ChapterBookmark.vue    # 章节书签按钮
+    │           ├── TextSelector.vue       # 文本选择工具
+    │           ├── RightControls.vue      # 右侧控制按钮组
+    │           └── NavigationButtons.vue  # 章节导航按钮
+    ├── composable/
+    │   ├── useAIToolbarStore.ts          # AI 工具栏逻辑
+    │   ├── useBookmarkStore.ts           # 书签管理逻辑
+    │   ├── useCatalogModal.ts            # 目录模态框逻辑
+    │   ├── useSettingsModalStore.ts      # 设置管理逻辑
+    │   └── useTextSelectorStore.ts       # 文本选择逻辑
+    ├── store/
+    │   └── index.ts                      # Pinia 状态管理
+    └── views/
+        └── ReaderPage.vue                # 阅读器主页面
+    ```
+  - **拆分示例**（以章节书签为例）：
+    - 展示组件：`ChapterBookmark.vue` 只负责 UI 与交互。
+    - 业务逻辑：`useBookmarkStore.ts` 负责书签的增删查逻辑。
+    - 页面整合：`ReaderPage.vue` 组合调用，提升复用性和可维护性。
+
+- **待办事项**：
+  - 完善翻页模式（滚动/章节翻页）。
+  - 对接后端 API 实现书签、书架持久化。
+  - 实现 AI 工具栏各功能。
+  - 优化 UI/UX 细节与性能。
 
 ### 4. 用户中心（UserCenterPage.vue）
 
@@ -162,23 +192,16 @@ src/
 - **ReaderSettingsPanel.vue**：阅读设置
 - **BookmarkManager.vue**：书签管理
 - **ReadingProgressBar.vue**：进度条
+- **AIToolbar.vue**：AI 工具栏（已独立为 toolbar/AIToolbar.vue）
+- **CatalogModal.vue**：目录模态框
+- **SettingsModal.vue**：设置模态框
+- **GuideToolbar.vue**：阅读指南模态框
+- **ChapterBookmark.vue**：章节书签按钮
+- **TextSelector.vue**：文本选择工具
+- **RightControls.vue**：右侧控制按钮组
+- **NavigationButtons.vue**：章节导航按钮
 
-### 4. AI 功能相关组件
-
-- **AIToolbar.vue**：AI 功能入口
-- **TextSelector.vue**：划词检测与弹窗
-- **CharacterDialoguePanel.vue**：角色对话
-- **StoryExtensionPanel.vue**：剧情推演
-- **SummaryPanel.vue**：内容提要
-- **TermExplanationCard.vue**：术语解释
-
-### 5. 用户相关组件
-
-- **LoginForm.vue**：登录表单
-- **RegisterForm.vue**：注册表单
-- **UserProfile.vue**：个人资料
-- **UserBookshelf.vue**：用户书架
-- **UserBookmarks.vue**：书签列表
+> 说明：阅读器相关组件已按功能模块进一步细分，提升了可维护性和复用性。
 
 ---
 
@@ -490,3 +513,22 @@ const handleLogin = async () => {
 ## 十一、总结
 
 本技术文档介绍了项目的整体架构、目录结构、核心技术栈、主要页面与组件设计、状态管理、API 封装与数据流、类型定义、模拟接口实现及组件实际用法。通过模块化、类型安全和高效的通信机制，保障了前端开发的高效与可维护性。
+
+---
+
+## 十二、开发进度与优化记录
+
+### 1. ReaderPage.vue 基本实现（2024.4.22）
+
+- 完成章节内容加载、章节导航、三栏式布局、目录/书签/设置/AI 工具栏等基础功能。
+- 支持亮/暗主题切换、响应式布局、文本选择交互、AI 工具栏占位。
+
+### 2. ReaderPage.vue 组件拆分优化（2024.4.23）
+
+- 针对代码量大、职责不清晰等问题，采用“关注点分离”原则，拆分为 Pinia Store、Composables、Components 三层。
+- 组件层按功能模块分类，命名语义化，职责单一。
+- 业务逻辑层实现逻辑复用，UI 与逻辑解耦。
+- 数据管理层集中管理应用状态，支持持久化。
+- 优化后代码组织更清晰，复用性和可维护性大幅提升。
+
+---
