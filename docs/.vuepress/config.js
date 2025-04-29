@@ -71,9 +71,9 @@ export default defineUserConfig({
     // },
 
     repo: 'jiachaoDing/dramaReaderAi',
-    editLink: false,
-    lastUpdated: false,
-    contributors: false,
+    editLink: true,
+    lastUpdated: true,
+    contributors: true,
   }),
 
   bundler: viteBundler(),
