@@ -32,7 +32,7 @@ public ApiResponse<profileResponse> profile(profileRequest request){
         return ApiResponse.error(404, "用户不存在");
     }
     // 检查邮箱格式
-    if(request.getEmail()==""||request.getUsername()==""||request.getAvatarUrl()==""){
+    if(request.getEmail().isEmpty() || request.getUsername().isEmpty() || request.getAvatarUrl().isEmpty()){
         return ApiResponse.error(400, "参数不正确");
     }
     // 更新用户的头像和邮箱
@@ -131,9 +131,124 @@ public ApiResponse<BookListResponse> getBookList(Integer page, Integer pageSize,
 }
 ```
 
-## 五、开发经验与后续计划
+## 五、书籍导入与详细内容接口开发
 
-- 熟悉了 MyBatis 动态 SQL 和分页插件的使用。
-- 后续计划引入大量书籍数据，开发书籍详情接口，并探索 Redis 有序集合实现排行榜功能。
+### 书籍导入
 
----
+1. **爬取书籍数据**：使用 Python 的 Scrapy 框架爬取书籍数据，生成 JSON 文件。
+2. **导入数据库**：通过 Java 解析 JSON 文件，将书籍和章节数据存储到数据库中。
+
+### 书籍详细内容接口
+
+1. **联合索引**：在章节表中创建 `bookId-chapterNo-chapterTitle` 联合索引，加速查询。
+2. **接口开发**：
+   - 查询书籍详细信息及章节列表。
+   - 更新书籍访问量。
+
+```java
+@Select("SELECT b.book_id, b.book_name, b.author, b.cover_url, c.name as category, b.create_time, b.description " +
+        "FROM books b " +
+        "LEFT JOIN categories c ON b.categories_id = c.categories_id " +
+        "WHERE b.book_id = #{bookId}")
+BookDetailResponse getBookDetail(@Param("bookId") Integer bookId);
+
+@Update("UPDATE books SET view_count = view_count + 1 WHERE book_id = #{bookId}")
+void updateViewCount(@Param("bookId") Integer bookId);
+```
+
+## 六、书签功能开发
+
+### 书签实体设计
+
+```java
+@Data
+@Entity
+@AllArgsConstructor
+@NoArgsConstructor
+@Table(name = "bookmarks")
+public class Bookmarks {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "bookmarks_id")
+    private Integer bookmarksId;
+    @Column(name = "user_id")
+    private Integer userId;
+    @Column(name = "book_id")
+    private Integer bookId;
+    @Column(name = "chapter_no")
+    private Integer chapterNo;
+    @Column(name = "create_time")
+    private Timestamp createTime;
+}
+```
+
+### 数据层
+
+```java
+@Insert("INSERT INTO bookmarks(user_id,book_id,chapter_no,create_time) VALUES(#{userId},#{bookId},#{chapterNo},#{createTime})")
+void insertBookmarks(Integer userId, Integer bookId, Integer chapterNo, Timestamp createTime);
+
+@Select("SELECT b.bookmarks_id, b.book_id, b.chapter_no, b.create_time, c.chapter_title " +
+        "FROM bookmarks b " +
+        "LEFT JOIN (SELECT book_id, chapter_no, chapter_title FROM chapters) c " +
+        "ON b.book_id = c.book_id AND b.chapter_no = c.chapter_no " +
+        "WHERE b.user_id = #{userId}")
+List<BookmarksItem> getBookmarks(Integer userId, Integer bookId);
+
+@Delete("DELETE FROM bookmarks WHERE bookmarks_id = #{bookmarksId}")
+void deleteBookmarks(Integer bookmarksId);
+```
+
+### 业务层
+
+```java
+public void addBookmark(Integer userId, Integer bookId, Integer chapterNo) {
+    Timestamp createTime = new Timestamp(System.currentTimeMillis());
+    bookmarksMapper.insertBookmarks(userId, bookId, chapterNo, createTime);
+}
+
+public ApiResponse<BookmarksResponse> getBookmarks(Integer userId, Integer bookId) {
+    List<BookmarksItem> bookmarks = bookmarksMapper.getBookmarks(userId, bookId);
+    BookmarksResponse response = new BookmarksResponse();
+    response.setBookmarks(bookmarks);
+    return ApiResponse.success(response);
+}
+
+public void deleteBookmark(Integer bookmarksId) {
+    bookmarksMapper.deleteBookmarks(bookmarksId);
+}
+```
+
+### 控制层
+
+```java
+@PostMapping()
+public ResponseEntity<ApiResponse<String>> addBookmark(@RequestBody addBookmarksRequest request) {
+    bookmarksService.addBookmark(request.getUserId(), request.getBookId(), request.getChapterNo());
+    return ResponseEntity.ok(ApiResponse.success("书签添加成功"));
+}
+
+@GetMapping()
+public ResponseEntity<ApiResponse<BookmarksResponse>> getBookmarks(
+        @RequestParam() Integer userId,
+        @RequestParam() Integer bookId) {
+    ApiResponse<BookmarksResponse> response = bookmarksService.getBookmarks(userId, bookId);
+    return ResponseEntity.ok(response);
+}
+
+@DeleteMapping("/{bookmarksId}")
+public ResponseEntity<ApiResponse<String>> deleteBookmark(@PathVariable Integer bookmarksId) {
+    bookmarksService.deleteBookmark(bookmarksId);
+    return ResponseEntity.ok(ApiResponse.success("书签删除成功"));
+}
+```
+
+## 七、开发经验与后续计划
+
+- **经验总结**：
+  - 熟悉了爬虫技术及其合法使用。
+  - 学习了数据库联合索引的应用及性能优化。
+  - 掌握了书签功能的完整开发流程。
+- **后续计划**：
+  - 引入大模型接口，开发 AI 辅助阅读功能。
+  - 优化现有接口性能，提升用户体验。
