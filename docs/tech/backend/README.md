@@ -243,12 +243,138 @@ public ResponseEntity<ApiResponse<String>> deleteBookmark(@PathVariable Integer 
 }
 ```
 
-## 七、开发经验与后续计划
 
-- **经验总结**：
-  - 熟悉了爬虫技术及其合法使用。
-  - 学习了数据库联合索引的应用及性能优化。
-  - 掌握了书签功能的完整开发流程。
-- **后续计划**：
-  - 引入大模型接口，开发 AI 辅助阅读功能。
-  - 优化现有接口性能，提升用户体验。
+
+## 七、AI功能开发
+
+### 平台选择与架构
+
+经过小组讨论，确定使用学校本地部署的AI平台 - AnythingLLM。该平台具有以下特点：
+
+- **统一接口**：将不同AI模型的接口文档统一，相当于套了一层中间件
+- **模型兼容**：无论使用什么AI模型，接口文档都只需参考AnythingLLM即可
+- **流式输出**：考虑到DeepSeek带有思考功能，为提升用户体验采用流式输出
+
+### AI流式服务实现
+
+#### 服务层设计
+
+```java
+@Service
+public class AIStreamService {
+    @Value("${anythingllm.url}")
+    private String aiServerUrl;
+ 
+    @Value("${anythingllm.apiKey}")
+    private String apiKey;
+ 
+    private final WebClient webClient;
+    private final ObjectMapper objectMapper;
+ 
+    public AIStreamService() {
+        this.webClient = WebClient.builder().build();
+        this.objectMapper = new ObjectMapper();
+    }
+    
+    public Flux<String> streamChat(String message, String mode) {
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("message", message);
+        requestBody.put("mode", mode);
+        requestBody.put("stream", true);
+ 
+        return webClient.post()
+                .uri(aiServerUrl + "/api/v1/workspace/aireader/stream-chat")
+                .header("Authorization", "Bearer " + apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.TEXT_EVENT_STREAM)
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToFlux(String.class)
+                .map(chunk -> {
+                    try {
+                        JsonNode jsonNode = objectMapper.readTree(chunk);
+                        if (jsonNode.has("textResponse")) {
+                            String text = jsonNode.get("textResponse").asText();
+                            return text == null ? "" : text;
+                        }
+                    } catch (Exception e) {
+                        // 记录日志
+                        return "";
+                    }
+                    return "";
+                })
+                .filter(text -> !text.isEmpty());
+    }
+}
+```
+
+#### 技术特点
+
+- **WebClient**：使用Spring WebFlux提供的响应式HTTP客户端进行网络通信
+- **流式处理**：设置响应类型为`text/event-stream`实现流式输出
+- **JSON解析**：使用ObjectMapper对AI返回内容进行过滤处理
+- **响应式编程**：返回`Flux<String>`类型，支持WebFlux、SSE等技术
+
+### 控制层实现
+
+#### 前情提要接口
+
+```java
+@GetMapping(value = "/streamChat", produces = "text/event-stream")
+public Flux<String> getChapterSummary(
+        @RequestParam Integer bookId,
+        @RequestParam Integer chapterNo
+){
+    logger.info("收到生成章节前情提要请求 - 书籍ID: {}, 章节号: {}", bookId, chapterNo);
+    
+    // 检查参数有效性
+    if (!bookService.exitsBook(bookId)) {
+        return Flux.error(new RuntimeException("书籍不存在"));
+    }
+    
+    String bookName = bookService.getBookName(bookId);
+    String chapterTitle = chapterService.getChapterTitle(bookId, chapterNo);
+    String prompt = "请为书籍《" + bookName + "》的章节《" + chapterTitle + "》之前的内容生成一个简短的前情提要。";
+    
+    return aiStreamService.streamChat(prompt, "chat");
+}
+```
+
+#### 名词解释接口
+
+```java
+@GetMapping(value = "/explanation", produces = "text/event-stream")
+public Flux<String> getTermExplanation(
+        @RequestParam Integer bookId,
+        @RequestParam Integer chapterNo,
+        @RequestParam String term
+){
+    logger.info("收到名词解释请求 - 书籍ID: {}, 章节号: {}, 词汇: {}", bookId, chapterNo, term);
+    
+    // 检查参数有效性
+    if (!bookService.exitsBook(bookId)) {
+        return Flux.error(new RuntimeException("书籍不存在"));
+    }
+    
+    String bookName = bookService.getBookName(bookId);
+    String chapterTitle = chapterService.getChapterTitle(bookId, chapterNo);
+    String prompt = "请解释在书籍《" + bookName + "》章节《" + chapterTitle + "》中出现的词汇：" + term;
+    
+    return aiStreamService.streamChat(prompt, "chat");
+}
+```
+
+### 接口特性
+
+- **流式响应**：返回`Flux<String>`类型数据，实现实时流式输出
+- **参数验证**：对书籍ID、章节号等参数进行有效性检查
+- **动态提示词**：根据书籍名称、章节标题动态生成AI提示词
+- **统一架构**：前情提要和名词解释功能开发相似度极高，主要区别在查询参数和提示词编写
+
+### 配置说明
+
+```yaml
+anythingllm:
+  url: ${AI_SERVER_URL:http://localhost:3001}
+  apiKey: ${AI_API_KEY:your-api-key}
+```
