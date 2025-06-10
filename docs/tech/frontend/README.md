@@ -46,7 +46,467 @@ src/
 
 ---
 
-## 三、路由设计
+## 三、组件开发架构规范
+
+### 🏗️ 整体架构思路
+
+#### 分层架构设计
+
+```
+┌─────────────────────────────────────┐
+│        展示组件层 (Components)         │ ← UI渲染 + 用户交互
+├─────────────────────────────────────┤
+│        业务逻辑层 (Composable)        │ ← 业务逻辑 + 状态处理  
+├─────────────────────────────────────┤
+│        数据管理层 (Pinia Store)        │ ← 全局状态 + 数据持久化
+├─────────────────────────────────────┤
+│        类型定义层 (Types)             │ ← TypeScript接口定义
+└─────────────────────────────────────┘
+```
+
+#### 关注点分离原则
+
+*   **组件层 (Components)**: 只关注 UI 渲染和用户交互，保持组件纯粹性。
+*   **逻辑层 (Composables)**: 处理业务逻辑、数据转换、副作用管理。
+*   **数据层 (Pinia Store)**: 管理全局状态、API调用、数据缓存。
+*   **类型层 (Types)**: 提供完整的 TypeScript 类型支持。
+
+### 📁 目录结构规范
+
+```
+src/
+├── components/          # 展示组件层
+│   └── reader/
+│       ├── toolbar/
+│       │   ├── AIToolbar.vue       # AI工具栏组件
+│       │   ├── ReadingToolbar.vue  # 阅读工具栏
+│       │   └── index.ts            # 组件导出
+│       └── content/
+│           ├── BookContent.vue     # 书籍内容组件
+│           └── ChapterNav.vue      # 章节导航
+├── composables/         # 业务逻辑层
+│   ├── useAIToolbar.ts             # AI工具栏逻辑
+│   ├── useReader.ts                # 阅读器核心逻辑
+│   ├── usePreviousSummary.ts       # 前情提要逻辑
+│   └── useBookmark.ts              # 书签功能逻辑
+├── store/               # 数据管理层
+│   ├── modules/
+│   │   ├── reader.s.ts               # 阅读器状态管理
+│   │   ├── ai.s.ts                   # AI功能状态管理
+│   │   └── user.s.ts                 # 用户状态管理
+│   └── index.ts                    # Store 入口
+├── types/               # 类型定义层
+│   ├── reader.d.ts                   # 阅读器相关类型
+│   ├── ai.d.ts                       # AI功能类型
+│   └── common.d.ts                   # 通用类型定义
+└── api/                 # API接口层
+    ├── reader.ts                   # 阅读器API
+    └── ai.ts                       # AI功能API
+```
+
+### 🎯 各层职责详解
+
+#### 1. 展示组件层 (Components)
+
+**职责**: UI渲染、事件处理、用户交互
+
+````vue
+// filepath: src/components/reader/toolbar/AIToolbar.vue
+<template>
+  <div class="ai-toolbar">
+    <el-button
+      @click="handleSummaryClick"
+      :loading="isLoading"
+      type="primary"
+    >
+      前情提要
+    </el-button>
+    <el-button @click="handleChatClick">AI对话</el-button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { useAIToolbar } from '@/composables/useAIToolbar'
+
+const {
+  isLoading,
+  handleSummaryClick,
+  handleChatClick
+} = useAIToolbar()
+</script>
+````
+
+#### 2. 业务逻辑层 (Composables)
+
+**职责**: 业务逻辑封装、状态管理、副作用处理
+
+````typescript
+// filepath: src/composables/useAIToolbar.ts
+import { ref, computed } from 'vue'
+import { useReaderStore } from '@/store/modules/reader.s' // Adjusted import based on example structure
+import { useAIStore } from '@/store/modules/ai.s'       // Adjusted import based on example structure
+import type { PreviousSummary } from '@/types/ai.d'    // Adjusted import based on example structure
+
+export function useAIToolbar() {
+  const readerStore = useReaderStore()
+  const aiStore = useAIStore()
+
+  const isLoading = ref(false)
+
+  // 计算属性
+  const currentBook = computed(() => readerStore.currentBook)
+  const currentChapter = computed(() => readerStore.currentChapter)
+
+  // 前情提要处理
+  const handleSummaryClick = async () => {
+    if (!currentBook.value || !currentChapter.value) return
+
+    try {
+      isLoading.value = true
+      // Assuming currentBook and currentChapter have an 'id' property
+      const summary = await aiStore.getPreviousSummary({
+        bookId: currentBook.value.id,
+        chapterId: currentChapter.value.id
+      })
+
+      // 显示前情提要弹窗
+      aiStore.showSummaryDialog(summary)
+    } catch (error) {
+      console.error('获取前情提要失败:', error)
+      // Optionally, use ElMessage for user feedback
+      // ElMessage.error('获取前情提要失败')
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // AI对话处理
+  const handleChatClick = () => {
+    aiStore.openChatDialog()
+  }
+
+  return {
+    isLoading,
+    handleSummaryClick,
+    handleChatClick
+  }
+}
+````
+
+#### 3. 数据管理层 (Pinia Store)
+
+**职责**: 全局状态管理、API调用、数据缓存
+
+````typescript
+// filepath: src/store/modules/ai.s.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { getPreviousSummaryAPI } from '@/api/ai' // Assuming this API function exists
+import type { PreviousSummary, GetSummaryRequest } from '@/types/ai.d' // Adjusted import
+
+export const useAIStore = defineStore('ai', () => {
+  // 状态定义
+  const summaryCache = ref(new Map<string, PreviousSummary>())
+  const isSummaryDialogVisible = ref(false)
+  const currentSummary = ref<PreviousSummary | null>(null)
+  const isChatDialogVisible = ref(false) // Added for openChatDialog
+
+  // 计算属性
+  const hasCachedSummary = computed(() => (bookId: string, chapterId: string) => {
+    const key = `${bookId}-${chapterId}`
+    return summaryCache.value.has(key)
+  })
+
+  // Actions
+  const getPreviousSummary = async (params: GetSummaryRequest): Promise<PreviousSummary> => {
+    const cacheKey = `${params.bookId}-${params.chapterId}`
+
+    // 检查缓存
+    if (summaryCache.value.has(cacheKey)) {
+      return summaryCache.value.get(cacheKey)!
+    }
+
+    // API调用
+    // Assuming getPreviousSummaryAPI returns a Promise<PreviousSummary>
+    // or a structure like { data: PreviousSummary }
+    const response = await getPreviousSummaryAPI(params)
+    const summary = response.data; // Adjust if API response structure is different
+
+    // 缓存结果
+    summaryCache.value.set(cacheKey, summary)
+
+    return summary
+  }
+
+  const showSummaryDialog = (summary: PreviousSummary) => {
+    currentSummary.value = summary
+    isSummaryDialogVisible.value = true
+  }
+
+  const closeSummaryDialog = () => {
+    isSummaryDialogVisible.value = false
+    currentSummary.value = null
+  }
+
+  const openChatDialog = () => {
+    isChatDialogVisible.value = true;
+  }
+
+  const closeChatDialog = () => {
+    isChatDialogVisible.value = false;
+  }
+
+  return {
+    // 状态
+    summaryCache,
+    isSummaryDialogVisible,
+    currentSummary,
+    isChatDialogVisible,
+
+    // 计算属性
+    hasCachedSummary,
+
+    // 方法
+    getPreviousSummary,
+    showSummaryDialog,
+    closeSummaryDialog,
+    openChatDialog,
+    closeChatDialog
+  }
+})
+````
+
+#### 4. 类型定义层 (Types)
+
+**职责**: TypeScript 类型定义、接口约束
+
+````typescript
+// filepath: src/types/ai.d.ts
+export interface PreviousSummary {
+  id: string
+  bookId: string
+  chapterId: string
+  summary: string
+  keyPoints: string[]
+  chapterTitle: string // Added based on composable usage
+  createdAt: string    // Added based on composable usage
+}
+
+export interface AIDialogState {
+  isVisible: boolean
+  messages: ChatMessage[]
+  isLoading: boolean
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
+// API 请求/响应类型
+export interface GetSummaryRequest {
+  bookId: string
+  chapterId: string
+}
+
+export interface GetSummaryResponse { // This is an example, adjust to your actual API response
+  code: number
+  message: string
+  data: PreviousSummary
+}
+````
+
+### 🔄 数据流向示例
+
+```
+用户点击"前情提要"按钮
+         ↓
+    组件触发事件处理 (`handleSummaryClick` in AIToolbar.vue)
+         ↓
+  Composable 处理业务逻辑 (`useAIToolbar`'s `handleSummaryClick`)
+         ↓
+    Store 检查缓存 (`aiStore.getPreviousSummary`)
+         ↓
+  (无缓存) Store 调用API获取数据 (`getPreviousSummaryAPI`)
+         ↓
+   Store 更新状态并缓存结果 (`summaryCache`, `currentSummary`)
+         ↓
+ Composable (via Store reactivity) or direct call updates component state (`isLoading`, triggers dialog display via `aiStore.showSummaryDialog`)
+         ↓
+     组件重新渲染 (Dialog becomes visible, button state changes)
+```
+
+### 📝 命名规范
+
+*   **组件命名**
+    *   大驼峰 + 语义化: `AIToolbar.vue`, `PreviousSummaryModal.vue`
+    *   功能模块前缀 (可选): `ReaderToolbar.vue`, `BookGridItem.vue`
+*   **Composable 命名**
+    *   `use` 前缀: `useAIToolbar`, `useReaderSettings`, `usePreviousSummary`
+    *   功能描述: 清晰表达 Composable 的主要功能。
+*   **Store 命名**
+    *   功能模块名 (小写): `ai`, `reader`, `user`, `book`
+    *   文件名: `ai.s.ts`, `reader.s.ts` (or `ai.store.ts`)
+    *   Store ID (Pinia): `'ai'`, `'reader'`
+*   **类型命名**
+    *   接口大驼峰: `PreviousSummary`, `AIDialogState`, `UserInfo`
+    *   枚举大驼峰: `LoadingState`, `DialogType`
+    *   文件名: `ai.d.ts`, `user.d.ts`
+
+### ✅ 最佳实践
+
+#### 1. 组件纯粹性
+
+组件应专注于UI渲染和用户事件的初步处理，将复杂逻辑委托给Composables。
+
+````vue
+// filepath: src/components/SomeFeatureButton.vue
+// ✅ 好的做法
+<script setup lang="ts">
+import { useSomeFeature } from '@/composables/useSomeFeature'
+
+// isLoading, handleClick are managed by the composable
+const { isLoading, handleClick } = useSomeFeature() 
+</script>
+````
+
+````typescript
+// filepath: src/components/BadExample.vue
+// ❌ 避免在组件中直接调用API或处理复杂业务逻辑
+// <script setup lang="ts">
+// import { ref } from 'vue'
+// import { getSomeDataAPI } from '@/api/someApi' // Direct API call in component
+
+// const data = ref(null)
+// const isLoading = ref(false)
+
+// const fetchData = async () => { // Complex logic in component
+//   isLoading.value = true
+//   try {
+//     const response = await getSomeDataAPI({ /* params */ })
+//     data.value = response.data
+//   } catch (error) {
+//     console.error("Failed to fetch data", error)
+//   } finally {
+//     isLoading.value = false
+//   }
+// }
+// </script>
+````
+
+#### 2. 状态管理
+
+*   **全局状态**: 使用 Pinia Store 管理应用范围内的状态（如用户信息、主题设置、跨组件共享的数据）。
+*   **局部状态**: Composable 内部的 `ref` 或 `reactive` 用于管理组件自身或紧密相关组件的局部状态（如弹窗的显示/隐藏、表单数据）。
+
+````typescript
+// filepath: src/store/modules/app.s.ts
+// ✅ 在 Store 中管理全局状态 (e.g., theme)
+// import { defineStore } from 'pinia';
+// import { ref } from 'vue';
+
+// export const useAppStore = defineStore('app', () => {
+//   const theme = ref<'light' | 'dark'>('light');
+//   function toggleTheme() {
+//     theme.value = theme.value === 'light' ? 'dark' : 'light';
+//   }
+//   return { theme, toggleTheme };
+// });
+````
+
+````typescript
+// filepath: src/composables/useDialog.ts
+// ✅ 在 Composable 中管理局部状态 (e.g., dialog visibility)
+// import { ref } from 'vue';
+
+// export function useDialog() {
+//   const isVisible = ref(false);
+//   function openDialog() {
+//     isVisible.value = true;
+//   }
+//   function closeDialog() {
+//     isVisible.value = false;
+//   }
+//   return { isVisible, openDialog, closeDialog };
+// }
+````
+
+#### 3. 错误处理
+
+*   **Composable/Store**: API 调用和核心业务逻辑的错误应在 Composable 或 Store 的 Action 中捕获和处理。
+*   **UI反馈**: 可以通过 `ElMessage` 等UI组件向用户显示友好的错误提示。
+*   **日志记录**: 在 `catch` 块中使用 `console.error` 记录详细错误信息，便于调试。
+
+````typescript
+// filepath: src/composables/useFeatureX.ts
+// ✅ 在 Composable 中统一处理错误
+// import { ElMessage } from 'element-plus'; // Example
+// import { useFeatureXStore } from '@/store/modules/featureX.s';
+
+// export function useFeatureX() {
+//   const store = useFeatureXStore();
+//   const performAction = async (params: any) => {
+//     try {
+//       await store.fetchDataWithAction(params);
+//       ElMessage.success('Operation successful!');
+//     } catch (error) {
+//       ElMessage.error('Operation failed. Please try again.');
+//       console.error('FeatureX action error:', error);
+//     }
+//   };
+//   return { performAction };
+// }
+````
+
+#### 4. 类型安全
+
+*   **全面定义**: 为 Props, Emits, Composable 函数返回值, Store State/Actions, API 参数/响应等提供完整的 TypeScript 类型定义。
+*   **利用泛型**: 在需要的地方使用泛型增强代码的灵活性和复用性，同时保持类型安全。
+
+````typescript
+// filepath: src/composables/useTypedFeature.ts
+// ✅ 完整的类型定义
+// import { ref } from 'vue';
+// import type { Ref } from 'vue';
+
+// interface FeatureOptions {
+//   id: string;
+//   isEnabled?: boolean;
+// }
+
+// interface FeatureResult {
+//   status: Ref<string>;
+//   updateOptions: (options: Partial<FeatureOptions>) => Promise<void>;
+// }
+
+// export function useTypedFeature(initialOptions: FeatureOptions): FeatureResult {
+//   const status = ref('idle');
+//   // ... implementation ...
+//   const updateOptions = async (options: Partial<FeatureOptions>) => {
+//     status.value = 'updating';
+//     // ... async logic ...
+//     status.value = 'updated';
+//   };
+//   return { status, updateOptions };
+// }
+````
+
+### 🎯 开发流程
+
+1.  **设计阶段 (Types)**: 首先定义相关功能的 TypeScript 类型和接口 (`*.d.ts`)，明确数据结构和契约。
+2.  **数据层 (Store)**: 如果涉及全局状态或复杂数据交互，实现 Pinia Store (`*.s.ts`)，定义 State, Getters, Actions，封装 API 调用和数据缓存逻辑。
+3.  **逻辑层 (Composable)**: 开发 Composable 函数 (`use*.ts`)，封装业务逻辑、调用 Store Actions、处理副作用、管理局部状态。
+4.  **展示层 (Component)**: 创建 Vue 组件 (`*.vue`)，专注于 UI 渲染和用户交互，调用 Composable 获取数据和方法。
+5.  **API层**: 定义和实现与后端交互的 API 调用函数 (e.g., in `src/api/`).
+6.  **测试**: 编写单元测试和集成测试，确保各层职责清晰、功能正确。
+
+通过这种架构，我们能够实现高内聚、低耦合的代码组织，提升项目的可维护性、可扩展性和团队协作效率。
+
+---
+
+## 四、路由设计
 
 | 路径              | 页面描述         |
 | ----------------- | ---------------- |
@@ -61,7 +521,7 @@ src/
 
 ---
 
-## 四、页面视图设计
+## 五、页面视图设计
 
 ### 1. 首页（HomePage.vue）
 
@@ -94,6 +554,7 @@ src/
 - **开发进度记录**：
   - 2024.4.22：完成阅读页面核心框架和基础功能，包括章节内容动态加载、章节导航、三栏式布局、目录/书签/设置/AI 工具栏等基础交互，支持亮/暗主题切换和响应式布局。
   - 2024.4.23：针对 ReaderPage.vue 代码量过大、可维护性差等问题，采用“关注点分离”原则，完成组件拆分优化。将页面拆分为数据管理层（Pinia Store）、业务逻辑层（Composables）、展示组件层（Vue Components），极大提升了代码可维护性和复用性。
+  - AI 阅读助手核心功能集成，实现“前情提要”和“名词解释”功能，采用 SSE 流式加载优化体验，并对 AI 交互弹窗（如 Think 标签折叠）进行优化。
 
 - **组件拆分优化实践**：
   - **优化前问题**：ReaderPage.vue 代码量超 2000 行，职责不清晰，维护困难。
@@ -115,7 +576,7 @@ src/
     │           ├── RightControls.vue      # 右侧控制按钮组
     │           └── NavigationButtons.vue  # 章节导航按钮
     ├── composable/
-    │   ├── useAIToolbarStore.ts          # AI 工具栏逻辑
+    │   ├── useAIToolbarStore.ts          # AI 工具栏逻辑 (已扩展支持新AI功能)
     │   ├── useBookmarkStore.ts           # 书签管理逻辑
     │   ├── useCatalogModal.ts            # 目录模态框逻辑
     │   ├── useSettingsModalStore.ts      # 设置管理逻辑
@@ -129,12 +590,19 @@ src/
     - 展示组件：`ChapterBookmark.vue` 只负责 UI 与交互。
     - 业务逻辑：`useBookmarkStore.ts` 负责书签的增删查逻辑。
     - 页面整合：`ReaderPage.vue` 组合调用，提升复用性和可维护性。
+  - **AI 功能相关 Composables**：新增 `useTextSelector.ts` (文本选择逻辑复用) 和 `useAIToolbar.ts` (AI工具栏功能封装，进一步细化) 等，用于管理 AI 交互的复杂逻辑。
+
+- **功能增强**：
+  - **AI 助手**：集成“前情提要”和“名词解释”功能，通过 `AIToolbar.vue` 触发。
+    - **前情提要**：用户可请求当前章节之前的内容概要，通过流式 SSE 技术实时展示。
+    - **名词解释**：用户选中书中特定名词后，可请求 AI 进行解释，同样支持流式展示和缓存。
 
 - **待办事项**：
   - 完善翻页模式（滚动/章节翻页）。
   - 对接后端 API 实现书签、书架持久化。
-  - 实现 AI 工具栏各功能。
-  - 优化 UI/UX 细节与性能。
+  - ~~实现 AI 工具栏各功能~~ (核心功能“前情提要”、“名词解释”已实现，持续迭代)。
+  - 扩展 AI 对话、剧情推演等高级 AI 功能。
+  - 优化 UI/UX 细节与性能，包括 AI 交互体验。
 
 ### 4. 用户中心（UserCenterPage.vue）
 
@@ -162,7 +630,7 @@ src/
 
 ---
 
-## 五、组件设计
+## 六、组件设计
 
 ### 1. 公共组件
 
@@ -281,13 +749,20 @@ src/
 - **ReaderContainer.vue**：主容器
 - **ReaderContent.vue**：章节内容
 - **ReaderToolbar.vue**：工具栏（目录、书签、设置、AI）
+  - **说明**：AI 工具栏 (`AIToolbar.vue`) 进一步封装，负责触发“前情提要”、“名词解释”等 AI 功能模态框。
 - **ReaderSettingsPanel.vue**：阅读设置
 - **BookmarkManager.vue**：书签管理
 - **ReadingProgressBar.vue**：进度条
-- **AIToolbar.vue**：AI 工具栏（已独立为 toolbar/AIToolbar.vue）
+- **AIToolbar.vue**：AI 工具栏（已独立为 `toolbar/AIToolbar.vue`，并扩展支持新功能）
 - **CatalogModal.vue**：目录模态框
 - **SettingsModal.vue**：设置模态框
 - **GuideToolbar.vue**：阅读指南模态框
+- **PreviousSummaryModal.vue** (`components/reader/modals/PreviousSummaryModal.vue`)：前情提要弹窗组件
+  - **功能**：左侧滑入式弹窗，用于流式展示 AI 生成的前情提要内容。支持暗色模式。
+  - **交互**：支持加载状态显示，用户可中断内容生成。
+- **TermExplanationModal.vue** (`components/reader/modals/TermExplanationModal.vue`)：名词解释弹窗组件
+  - **功能**：用于展示选中名词的 AI 解释，支持流式输出和内容缓存。
+  - **Think 标签处理**：AI 思考过程（标记为 "Think"）的内容支持折叠/展开，优化阅读体验。采用渐变背景、图标切换和紧凑布局。
 - **ChapterBookmark.vue**：章节书签按钮
 - **TextSelector.vue**：文本选择工具
 - **RightControls.vue**：右侧控制按钮组
@@ -317,14 +792,15 @@ src/
 
 ---
 
-## 六、交互与数据流设计
+## 七、交互与数据流设计
 
 ### 1. 状态管理（Pinia）
 
 - **userStore**：用户信息、登录状态、阅读偏好
 - **bookStore**：书籍列表、当前阅读、搜索结果
 - **readerStore**：阅读进度、书签、阅读设置
-- **aiStore**：AI 对话历史、内容缓存
+- **aiStore**：AI 对话历史、内容缓存。
+  - **扩展**：新增状态管理 AI 功能，如 `explanationState` 用于名词解释（管理可见性 `isVisible`、加载状态 `isLoading`、流式状态 `isStreaming`、内容 `content`、当前术语 `currentTerm`），以及类似状态管理前情提要。
 
 #### Pinia 特点
 
@@ -355,17 +831,19 @@ export const useUserInfoStore = defineStore('userInfo', {
 
 - **书籍浏览与选择**：首页筛选/搜索 → 详情页 → 开始阅读/加入书架
 - **阅读体验**：阅读页面 → 翻页 → 工具栏 → 设置/目录/AI/书签
-- **AI 功能交互**：划词 → 选择 AI 功能 → 面板输入/选择 → 查看结果
+- **AI 功能交互**：
+  - **前情提要**：用户点击 AI 工具栏“前情提要”按钮 → `PreviousSummaryModal.vue` 滑出 → 调用 `streamChat` API → SSE 流式接收并展示内容 → 用户可中断。
+  - **名词解释**：用户在阅读内容中划词 → 触发文本选择工具 (`TextSelector.vue`) → 点击“名词解释” → `TermExplanationModal.vue` 弹出 → 调用 `explanation` API (传递 `bookId`, `chapterTitle`, `prompt` 等参数) → SSE 流式接收并展示内容 (Think 标签可折叠) → 用户可中断。
 - **用户数据管理**：登录/注册 → 用户中心 → 管理书架/书签/偏好
 
 ### 3. API 请求流程
 
-1. 组件调用 API 方法（如 `loginAPI`）
-2. API 方法通过 `request.ts` 发送请求
+1. 组件调用 API 方法（如 `loginAPI` 或 AI 服务 API）
+2. API 方法通过 `request.ts` (通用请求) 或特定服务封装 (如 AI 服务，可能使用 `fetch` API 配合 `AbortController` 实现可取消的流式请求) 发送请求。
 3. 请求拦截器自动添加 token（从 Pinia 获取）
-4. 服务器响应
-5. 响应拦截器处理状态码、错误（如 401 跳转登录页）
-6. 组件获取结果，更新 UI 或状态
+4. 服务器响应 (AI 服务可能为 `text/event-stream` 类型)
+5. 响应拦截器处理状态码、错误（如 401 跳转登录页）。对于流式响应，客户端实时处理数据片段。
+6. 组件获取结果，更新 UI 或状态。
 
 #### 请求工具封装（src/utils/request.ts）
 
@@ -403,9 +881,26 @@ instance.interceptors.response.use(
 )
 ```
 
+#### AI 服务流式请求处理
+- **技术选型**：采用 `fetch` API 结合 `AbortController` 实现可取消的流式请求，通过 Server-Sent Events (SSE) 接收实时数据。
+- **实现**：
+  ```typescript
+  // 示例：使用fetch + AbortController实现可取消的流式请求
+  // const currentController = new AbortController();
+  // const response = await fetch(url, {
+  //   method: 'GET', // or 'POST'
+  //   headers,
+  //   signal: currentController.signal,
+  //   // body: JSON.stringify(payload) // if POST
+  // });
+  // const reader = response.body?.getReader();
+  // // 实时处理数据流，支持用户通过 currentController.abort() 中断
+  ```
+- **优势**：提升用户体验，AI 生成内容无需等待完整响应即可逐步展示；用户可随时中断耗时操作。
+
 ---
 
-## 七、用户相关接口与类型定义
+## 八、用户相关接口与类型定义
 
 ### 1. 用户注册
 
@@ -469,7 +964,35 @@ export type UserRegister = {
 
 ---
 
-## 八、API 接口封装示例
+## 八点五、AI 服务接口 (新增或调整章节号)
+
+### 1. 前情提要 (流式输出)
+
+- **路径**：`GET /api/v1/AIService/streamChat` (或 POST，根据实际情况调整)
+- **请求参数/体**：
+  - `bookId`: string (书籍ID)
+  - `chapterId` (或 `chapterTitle`): string (章节标识)
+  - 其他必要参数 (如用户历史、上下文等)
+- **响应类型**：`text/event-stream`
+- **功能**：根据书籍和章节信息，流式返回前情提要内容。支持基于书籍ID和章节号的缓存。
+
+### 2. 名词解释
+
+- **路径**：`POST /api/v1/AIService/explanation`
+- **请求体**：
+  ```json
+  {
+    "bookId": "string",
+    "chapterTitle": "string",
+    "prompt": "string" // 用户选中的文本或处理后的查询词
+  }
+  ```
+- **响应类型**：`text/event-stream` (如果也采用流式) 或 `application/json`
+- **功能**：解释用户选中的名词或短语。支持基于完整参数键的缓存策略。
+
+---
+
+## 九、API 接口封装示例
 
 ```typescript
 // 登录接口
@@ -493,7 +1016,7 @@ export const registerAPI = (params: UserRegister) => {
 
 ---
 
-## 九、模拟接口实现（Mock）
+## 十、模拟接口实现（Mock）
 
 ```typescript
 export const mockLoginAPI = (params: UserLogin) => {
@@ -528,7 +1051,7 @@ export const mockLoginAPI = (params: UserLogin) => {
 
 ---
 
-## 十、组件中使用 API 示例
+## 十一、组件中使用 API 示例
 
 以登录弹窗为例，展示如何在 Vue 组件中使用 API 接口：
 
@@ -622,13 +1145,13 @@ const handleLogin = async () => {
 
 ---
 
-## 十一、总结
+## 十二、总结
 
 本技术文档介绍了项目的整体架构、目录结构、核心技术栈、主要页面与组件设计、状态管理、API 封装与数据流、类型定义、模拟接口实现及组件实际用法。通过模块化、类型安全和高效的通信机制，保障了前端开发的高效与可维护性。
 
 ---
 
-## 十二、开发进度与优化记录
+## 十三、开发进度与优化记录
 
 ### 1. ReaderPage.vue 基本实现（2024.4.22）
 
@@ -642,5 +1165,17 @@ const handleLogin = async () => {
 - 业务逻辑层实现逻辑复用，UI 与逻辑解耦。
 - 数据管理层集中管理应用状态，支持持久化。
 - 优化后代码组织更清晰，复用性和可维护性大幅提升。
+
+### 3. AI 阅读助手核心功能上线 (2025.6.10)
+
+- **概述**：集成了 AI阅读助手的核心功能，包括“前情提要”和“名词解释”。重点优化了 AI 内容的流式加载体验 (SSE) 和交互细节。
+- **主要成果**：
+  - **功能实现**：成功对接 `/api/v1/AIService/streamChat` 和 `/api/v1/AIService/explanation` API。
+  - **技术亮点**：应用 SSE 技术实现 AI 内容实时流式输出；通过 `AbortController` 实现用户可中断的请求；`Pinia` 集中管理 AI 功能状态；对 AI 思考过程的 "Think" 标签进行特殊可折叠处理。
+  - **组件化**：新增 `PreviousSummaryModal.vue` 和 `TermExplanationModal.vue` 等专用组件。
+  - **体验优化**：提升了加载、中断等交互的即时反馈和视觉效果，支持暗色模式。
+  - **问题解决**：处理了流式响应强制关闭、Think 标签样式、热重载兼容性等问题。
+- **状态**：核心功能完整，已投入使用。详细技术实现已融入本文档相关章节。
+- **后续**：规划性能优化（智能缓存）、功能扩展（AI对话、剧情推演）、用户定制及多语言支持。
 
 ---
