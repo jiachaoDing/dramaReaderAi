@@ -378,3 +378,136 @@ anythingllm:
   url: ${AI_SERVER_URL:http://localhost:3001}
   apiKey: ${AI_API_KEY:your-api-key}
 ```
+
+## 八、章节续写功能开发
+
+### 功能简介
+
+章节续写功能是一个基于 AI 的动态内容生成模块，用户可以通过提供书籍 ID、章节号以及续写提示，生成符合上下文的章节内容，并将其存储到数据库中。该功能通过流式数据处理实现实时响应，提升用户体验。经过讨论，我们设计了一个类似树形结构来构建剧情多路推演。
+
+### 核心功能解析
+
+`expandChapter` 方法的核心逻辑：
+
+1. **参数校验**：检查书籍是否存在，避免无效请求
+2. **上下文获取**：获取书籍名称、章节标题和章节内容，为后续生成提供上下文
+3. **生成提示语**：根据用户输入的提示语和章节上下文，动态构建 AI 服务的请求内容
+4. **调用 AI 服务**：使用流式数据处理，实时返回生成的内容
+5. **正则解析生成内容**：提取生成内容中的章节标题和正文
+6. **存储到数据库**：将解析后的章节标题和正文存储到数据库中
+
+### 核心代码实现
+
+```java
+@PostMapping(value = "/expandChapter", produces = "text/event-stream")
+public Flux<String> expandChapter(@RequestBody ExpandChapterRequest request) {
+    logger.info("收到剧情推演请求 - 书籍ID: {}, 章节号: {}, 用户id: {}", 
+                request.getBookId(), request.getChapterNo(), request.getUserId());
+    
+    // 检查书籍是否存在
+    if (!bookService.exitsBook(request.getBookId())) {
+        return Flux.error(new RuntimeException("书籍不存在"));
+    }
+ 
+    // 获取书籍名称、章节标题和章节内容
+    String bookName = bookService.getBookName(request.getBookId());
+    String chapterTitle = chapterService.getChapterTitle(request.getBookId(), request.getChapterNo());
+    String chapterContext = chapterService.getChapterContentByTitle(request.getBookId(), chapterTitle);
+    String prompt = request.getPrompt();
+    
+    // 构建 AI 服务的提示语
+    String finalPrompt = "请扩写书籍《" + bookName + "》的章节《" + chapterTitle + "》,此章的内容为" + chapterContext + "" +
+            "。请在扩写时注意保持章节的风格和内容一致。" +
+            "同时这个章节的内容也可能是扩写出来的,请尽量保持连贯性" +
+            "请按照" + prompt + "的想法扩写" +
+            "此外,我要求你返回的正文里面的格式:章节标题必须使用<<>>包裹,正文内容包裹在一个()里面,除此之外请不要返回其他任何内容。";
+ 
+    // 用于存储流式内容
+    StringBuilder contentBuilder = new StringBuilder();
+ 
+    return aiStreamService.streamChat(finalPrompt, "chat")
+            .doOnNext(contentBuilder::append) // 将流式内容追加到 StringBuilder
+            .doOnComplete(() -> {
+                // 正则提取标题和正文
+                String content = contentBuilder.toString();
+                String title = "";
+                String body = "";
+ 
+                // 使用正则提取标题
+                java.util.regex.Pattern titlePattern = java.util.regex.Pattern.compile("<<(.+?)>>");
+                java.util.regex.Matcher titleMatcher = titlePattern.matcher(content);
+                if (titleMatcher.find()) {
+                    title = titleMatcher.group(1); // 提取标题内容，不包含<<>>
+                }
+ 
+                // 使用正则提取正文
+                java.util.regex.Pattern bodyPattern = java.util.regex.Pattern.compile("\\((.+?)\\)");
+                java.util.regex.Matcher bodyMatcher = bodyPattern.matcher(content);
+                if (bodyMatcher.find()) {
+                    body = bodyMatcher.group(1); // 提取正文内容，不包含()
+                }
+ 
+                // 存储章节标题和正文到数据库
+                chapterService.addNewChapter(request.getUserId(), request.getBookId(), title, body, request.getChapterNo());
+            });
+}
+```
+
+### 关键技术点
+
+#### 1. 流式数据处理
+- 使用 `Flux` 实现流式响应，提升用户体验
+- 通过 `doOnNext` 和 `doOnComplete` 处理生成内容
+
+#### 2. 正则表达式解析
+- 标题正则：`<<(.+?)>>`，提取 `<<>>` 包裹的内容
+- 正文正则：`\\((.+?)\\)`，提取 `()` 包裹的内容
+
+#### 3. 树形结构设计
+- 章节号递增存储续写章节
+- 通过章节标题格式 `_(preChapterNo)_(userId)` 标识续写关系
+- 树形结构构建在前端进行，实现剧情多路推演
+
+#### 4. 数据库存储策略
+```java
+// 调用服务层方法存储新章节
+chapterService.addNewChapter(request.getUserId(), request.getBookId(), title, body, request.getChapterNo());
+```
+
+### 请求实体设计
+
+```java
+public class ExpandChapterRequest {
+    private Integer bookId;
+    private Integer chapterNo;
+    private Integer userId;
+    private String prompt;
+    
+    // getter 和 setter 方法
+}
+```
+
+## 九、开发经验与后续计划
+
+- **经验总结**：
+  - 熟悉了爬虫技术及其合法使用。
+  - 学习了数据库联合索引的应用及性能优化。
+  - 掌握了书签功能的完整开发流程。
+  - 深入理解了AI接口集成与流式数据处理。
+  - 掌握了Spring WebFlux响应式编程技术。
+  - 学习了Linux服务器运维和团队协作开发能力。
+  
+- **技术收获**：
+  - **Linux运维**：服务器部署、环境配置、日志管理
+  - **Spring Boot开发**：RESTful API设计、数据库集成、拦截器配置
+  - **数据库设计**：表结构设计、索引优化、MyBatis动态SQL
+  - **AI接口集成**：AnythingLLM平台使用、流式输出处理、正则表达式解析
+  - **团队协作**：Git版本控制、接口文档编写、代码规范统一
+
+- **后续计划**：
+  - 优化现有接口性能，提升用户体验。
+  - 完善AI功能的错误处理和异常情况管理。
+  - 扩展章节续写功能，支持更复杂的剧情分支。
+
+**项目实训总结**：
+通过本次项目实训，完整掌握了从后端架构设计到AI功能集成的全流程开发技能，为今后的软件开发工作奠定了坚实基础。
