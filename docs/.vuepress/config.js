@@ -38,8 +38,9 @@ export default defineUserConfig({
         children: [
           { text: '前端开发', link: '/tech/frontend/' },
           { text: '后端开发', link: '/tech/backend/' },
-          { text: 'AI 模型', link: '/tech/ai/' },
-          { text: '知识图谱', link: '/tech/knowledge-graph/' }
+          // { text: 'AI 模型', link: '/tech/ai/' },
+          // { text: '知识图谱', link: '/tech/knowledge-graph/' },
+          { text: '接口文档', link: '/tech/api/' }
         ]
       },
       { text: '开发计划', link: '/roadmap/' },
