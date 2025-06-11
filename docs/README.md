@@ -4,7 +4,7 @@ heroImage: /images/logo.png
 heroText: 剧想·智读
 tagline: 智能化阅读体验的革新者
 actions:
-  - text: 开始阅读
+  - text: 开启智读
     link: http://222.206.4.160/
     type: primary
 features:
