@@ -5,7 +5,7 @@ heroText: 剧想·智读
 tagline: 智能化阅读体验的革新者
 actions:
   - text: 快速开始 →
-    link: /intro/
+    link: http://222.206.4.160/
     type: primary
 features:
   - title: 沉浸式阅读体验
